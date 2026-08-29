@@ -14,7 +14,7 @@ android {
         minSdk = 31
         targetSdk = 35
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
+        versionName = System.getenv("VERSION_NAME") ?: "0.1.1"
     }
 
     // Release signing is driven entirely by environment variables so no secrets
