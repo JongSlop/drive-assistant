@@ -1,0 +1,22 @@
+<resources>
+    <string name="stt_unavailable">Spracherkennung ist nicht verfügbar. Installiere eine Erkennungs-App.</string>
+    <string name="stt_no_match">Das habe ich nicht verstanden.</string>
+    <string name="stt_no_speech">Ich habe nichts gehört.</string>
+    <string name="stt_network">Netzwerkfehler bei der Spracherkennung.</string>
+    <string name="stt_no_mic">Mikrofonberechtigung fehlt.</string>
+    <string name="stt_busy">Erkennung ist beschäftigt, bitte nochmal.</string>
+    <string name="stt_rate_limited">Erkennung ist ausgelastet, bitte nochmal.</string>
+    <string name="stt_server_disconnected">Verbindung zum Erkennungsserver getrennt.</string>
+    <string name="stt_lang_unsupported">Diese Sprache wird von der Erkennung nicht unterstützt.</string>
+    <string name="stt_lang_unavailable">Für diese Sprache ist kein Sprachmodell installiert. Öffne deine Erkennungs-App und lade eins herunter.</string>
+    <string name="stt_error_generic">Fehler bei der Spracherkennung: %1$d.</string>
+    <string name="stt_say_something">Sprich…</string>
+    <string name="stt_popup_none">Keine Spracherkennungs-App installiert, die ein Popup anzeigt.</string>
+
+    <string name="asst_done">Erledigt.</string>
+    <string name="asst_stuck">Dabei bin ich hängengeblieben.</string>
+    <string name="asst_model_error">Bei der Kommunikation mit dem Modell ist etwas schiefgelaufen.</string>
+    <string name="asst_reply_language_hint">Antworte immer auf %1$s.</string>
+    <string name="ctx_datetime">Aktuelles Datum und Uhrzeit: %1$s.</string>
+    <string name="ctx_now_playing">Aktuell läuft: %1$s.</string>
+</resources>

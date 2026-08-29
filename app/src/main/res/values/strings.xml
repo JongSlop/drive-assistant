@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">DriveAssistant</string>
+    <string name="notif_service_label">DriveAssistant notification reader</string>
+
+    <!-- Spoken speech-recognition feedback -->
+    <string name="stt_unavailable">Speech recognition is not available. Install a recognition app.</string>
+    <string name="stt_no_match">I didn\'t catch that.</string>
+    <string name="stt_no_speech">I didn\'t hear anything.</string>
+    <string name="stt_network">Speech network error.</string>
+    <string name="stt_no_mic">Microphone permission is missing.</string>
+    <string name="stt_busy">Recognizer is busy, try again.</string>
+    <string name="stt_rate_limited">Recognizer is rate-limited, try again.</string>
+    <string name="stt_server_disconnected">Recognition server disconnected.</string>
+    <string name="stt_lang_unsupported">That language isn\'t supported by the recognizer.</string>
+    <string name="stt_lang_unavailable">No speech model is downloaded for this language. Open your recognition app and download one.</string>
+    <string name="stt_error_generic">Speech recognition error %1$d.</string>
+    <string name="stt_say_something">Say something…</string>
+    <string name="stt_popup_none">No speech-recognition app is installed to show a popup.</string>
+
+    <!-- Spoken assistant feedback -->
+    <string name="asst_done">Done.</string>
+    <string name="asst_stuck">I got stuck working on that.</string>
+    <string name="asst_model_error">Something went wrong talking to the model.</string>
+    <string name="asst_reply_language_hint">Always reply in %1$s.</string>
+    <string name="ctx_datetime">Current date and time: %1$s.</string>
+    <string name="ctx_now_playing">Media currently playing: %1$s.</string>
+</resources>
