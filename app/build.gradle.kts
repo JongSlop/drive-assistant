@@ -13,14 +13,28 @@ android {
         applicationId = "dev.smto.driveassistant"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
+    }
+
+    // Release signing is driven entirely by environment variables so no secrets
+    // live in the repo. When KEYSTORE_PASSWORD is unset (local dev), the release
+    // build is left unsigned.
+    val hasReleaseSigning = System.getenv("KEYSTORE_PASSWORD") != null
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release.keystore")
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS") ?: "release"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null
         }
     }
     compileOptions {
