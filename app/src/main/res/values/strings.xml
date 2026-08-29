@@ -16,6 +16,7 @@
     <string name="stt_error_generic">Speech recognition error %1$d.</string>
     <string name="stt_say_something">Say something…</string>
     <string name="stt_popup_none">No speech-recognition app is installed to show a popup.</string>
+    <string name="stt_slow">Speech recognition is taking too long. Try again.</string>
 
     <!-- Spoken assistant feedback -->
     <string name="asst_done">Done.</string>

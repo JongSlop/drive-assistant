@@ -77,6 +77,7 @@ class AssistActivity : ComponentActivity() {
                             Text(
                                 when (state.phase) {
                                     Phase.LISTENING -> "Listening…"
+                                    Phase.TRANSCRIBING -> "Transcribing…"
                                     Phase.THINKING -> "Thinking…"
                                     Phase.SPEAKING -> "…"
                                     Phase.IDLE -> "Done"

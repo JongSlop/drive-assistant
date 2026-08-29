@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -24,7 +25,11 @@ import java.util.Locale
  */
 class AssistantOrchestrator(context: Context) {
 
-    enum class Phase { IDLE, LISTENING, THINKING, SPEAKING }
+    /**
+     * IDLE -> LISTENING (mic open) -> TRANSCRIBING (speech ended, recognizer still
+     * working) -> THINKING (model call, tool calls) -> SPEAKING -> IDLE.
+     */
+    enum class Phase { IDLE, LISTENING, TRANSCRIBING, THINKING, SPEAKING }
 
     data class Line(val role: String, val text: String)
 
@@ -60,28 +65,53 @@ class AssistantOrchestrator(context: Context) {
         _state.value = UiState()
     }
 
+    /**
+     * Return to IDLE without touching history. Called when the user taps the mic a
+     * second time to abandon an in-flight turn; the caller is responsible for
+     * cancelling the running coroutine and stopping TTS.
+     */
+    fun abort() {
+        _state.value = _state.value.copy(phase = Phase.IDLE, partial = "", error = null)
+    }
+
     /** Capture one spoken utterance, then answer it. Suspends until the reply is queued to TTS. */
     suspend fun listenAndRespond() {
         val cfg = app.settings.current()
+        val strings = appContext.forLanguage(cfg.language)
         _state.value = _state.value.copy(phase = Phase.LISTENING, partial = "", error = null)
         var finalText: String? = null
+        var failed = false
 
-        stt.listen(cfg.language).collect { event ->
-            when (event) {
-                is SpeechToText.Event.Partial ->
-                    _state.value = _state.value.copy(partial = event.text)
-                is SpeechToText.Event.Final -> finalText = event.text
-                is SpeechToText.Event.Failed -> {
-                    _state.value = _state.value.copy(phase = Phase.IDLE, partial = "", error = event.reason)
-                    app.tts.speak(event.reason, flush = true, languageTag = cfg.language)
+        val finished = withTimeoutOrNull(LISTEN_TIMEOUT_MS) {
+            stt.listen(cfg.language).collect { event ->
+                when (event) {
+                    is SpeechToText.Event.Partial ->
+                        _state.value = _state.value.copy(partial = event.text)
+                    is SpeechToText.Event.Final -> finalText = event.text
+                    is SpeechToText.Event.Failed -> {
+                        failed = true
+                        _state.value = _state.value.copy(phase = Phase.IDLE, partial = "", error = event.reason)
+                        app.tts.speak(event.reason, flush = true, languageTag = cfg.language)
+                    }
+                    SpeechToText.Event.ReadyForSpeech ->
+                        _state.value = _state.value.copy(phase = Phase.LISTENING)
+                    SpeechToText.Event.EndOfSpeech ->
+                        _state.value = _state.value.copy(phase = Phase.TRANSCRIBING)
                 }
-                SpeechToText.Event.EndOfSpeech,
-                SpeechToText.Event.ReadyForSpeech -> Unit
             }
+            true
+        }
+
+        if (finished == null && finalText == null && !failed) {
+            val msg = strings.getString(R.string.stt_slow)
+            _state.value = _state.value.copy(phase = Phase.IDLE, partial = "", error = msg)
+            app.tts.speak(msg, flush = true, languageTag = cfg.language)
+            return
         }
 
         val said = finalText?.trim().orEmpty()
         if (said.isNotEmpty()) respondTo(said)
+        else if (!failed) _state.value = _state.value.copy(phase = Phase.IDLE, partial = "")
     }
 
     /** Answer a typed / already-transcribed message. */
@@ -168,6 +198,9 @@ class AssistantOrchestrator(context: Context) {
 
     companion object {
         private const val MAX_TOOL_ROUNDS = 4
+
+        /** Hard cap on a single listen turn, so a wedged recognizer can't hang the UI. */
+        private const val LISTEN_TIMEOUT_MS = 60_000L
 
         /** Non-system messages retained across turns (roughly 5-7 turns). */
         private const val MAX_HISTORY_MESSAGES = 30

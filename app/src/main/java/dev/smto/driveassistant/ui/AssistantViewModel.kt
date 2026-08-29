@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dev.smto.driveassistant.App
 import dev.smto.driveassistant.R
 import dev.smto.driveassistant.assistant.AssistantOrchestrator
+import dev.smto.driveassistant.assistant.AssistantOrchestrator.Phase
 import dev.smto.driveassistant.data.SettingsRepository
 import dev.smto.driveassistant.data.SettingsRepository.SttMode
 import dev.smto.driveassistant.util.forLanguage
@@ -36,25 +37,48 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
     private var running: Job? = null
 
-    fun toggleListen() {
-        val job = running
-        if (job != null && job.isActive) {
-            job.cancel()
-            running = null
-            return
+    private val busy: Boolean get() = running?.isActive == true
+
+    /**
+     * Single entry point for the mic button. Tapping while idle starts listening;
+     * tapping during any active phase abandons the current turn.
+     */
+    fun onMicTap() {
+        if (busy || state.value.phase != Phase.IDLE) {
+            cancel()
+        } else {
+            startListening()
         }
+    }
+
+    fun startListening() {
+        if (busy) return
         running = viewModelScope.launch {
-            orchestrator.listenAndRespond()
-            running = null
+            try {
+                orchestrator.listenAndRespond()
+            } finally {
+                running = null
+            }
         }
+    }
+
+    /** Abort the in-flight turn: stop the coroutine, silence TTS, return to idle. */
+    fun cancel() {
+        running?.cancel()
+        running = null
+        App.get().tts.stop()
+        orchestrator.abort()
     }
 
     fun send(text: String) {
         if (text.isBlank()) return
         running?.cancel()
         running = viewModelScope.launch {
-            orchestrator.respondTo(text.trim())
-            running = null
+            try {
+                orchestrator.respondTo(text.trim())
+            } finally {
+                running = null
+            }
         }
     }
 

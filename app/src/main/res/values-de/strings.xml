@@ -12,6 +12,7 @@
     <string name="stt_error_generic">Fehler bei der Spracherkennung: %1$d.</string>
     <string name="stt_say_something">Sprich…</string>
     <string name="stt_popup_none">Keine Spracherkennungs-App installiert, die ein Popup anzeigt.</string>
+    <string name="stt_slow">Die Spracherkennung dauert zu lange. Versuch es nochmal.</string>
 
     <string name="asst_done">Erledigt.</string>
     <string name="asst_stuck">Dabei bin ich hängengeblieben.</string>

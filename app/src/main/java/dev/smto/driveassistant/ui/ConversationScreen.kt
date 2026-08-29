@@ -5,6 +5,11 @@ import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,10 +31,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +55,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +65,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.smto.driveassistant.assistant.AssistantOrchestrator.Phase
+import kotlinx.coroutines.delay
 import dev.smto.driveassistant.data.SettingsRepository.SttMode
 import dev.smto.driveassistant.voice.RecognizerIntents
 
@@ -124,11 +133,7 @@ fun ConversationScreen(
                 SttMode.SYSTEM -> {
                     MicButton(
                         phase = state.phase,
-                        onClick = {
-                            if (!micGranted) onRequestMic()
-                            else if (state.phase == Phase.SPEAKING) vm.stopSpeaking()
-                            else vm.toggleListen()
-                        },
+                        onClick = { if (!micGranted) onRequestMic() else vm.onMicTap() },
                     )
                     Spacer(Modifier.height(24.dp))
                 }
@@ -137,8 +142,8 @@ fun ConversationScreen(
                     MicButton(
                         phase = state.phase,
                         onClick = {
-                            if (state.phase == Phase.SPEAKING) {
-                                vm.stopSpeaking()
+                            if (state.phase != Phase.IDLE) {
+                                vm.onMicTap()
                             } else {
                                 val intent = RecognizerIntents.build(context, language, recognizerPackage)
                                 if (intent.resolveActivity(context.packageManager) == null) {
@@ -159,19 +164,34 @@ fun ConversationScreen(
                         vm.send(text)
                     },
                     onStop = vm::stopSpeaking,
+                    onCancel = vm::cancel,
                 )
             }
         }
     }
 }
 
+private fun Phase.isWorking() = this == Phase.TRANSCRIBING || this == Phase.THINKING
+
 @Composable
 private fun StatusText(phase: Phase, mode: SttMode) {
+    // Seconds spent in the current working phase; shown once it drags on so a slow
+    // recognizer or model call never looks frozen.
+    var secs by remember(phase) { mutableStateOf(0) }
+    LaunchedEffect(phase) {
+        while (phase.isWorking()) {
+            delay(1000)
+            secs++
+        }
+    }
+    val elapsed = if (phase.isWorking() && secs >= 3) " ${secs}s" else ""
+
     val label = when (phase) {
         Phase.IDLE -> if (mode == SttMode.IME) "Dictate or type your request" else "Tap to talk"
         Phase.LISTENING -> "Listening…"
-        Phase.THINKING -> "Thinking…"
-        Phase.SPEAKING -> "Speaking — tap stop to interrupt"
+        Phase.TRANSCRIBING -> "Transcribing, tap to cancel$elapsed"
+        Phase.THINKING -> "Thinking, tap to cancel$elapsed"
+        Phase.SPEAKING -> "Speaking, tap to stop"
     }
     Text(
         label,
@@ -185,23 +205,55 @@ private fun StatusText(phase: Phase, mode: SttMode) {
 private fun MicButton(phase: Phase, onClick: () -> Unit) {
     val target = when (phase) {
         Phase.LISTENING -> MaterialTheme.colorScheme.error
-        Phase.THINKING -> MaterialTheme.colorScheme.secondary
+        Phase.TRANSCRIBING, Phase.THINKING -> MaterialTheme.colorScheme.secondary
         Phase.SPEAKING -> MaterialTheme.colorScheme.tertiary
         Phase.IDLE -> MaterialTheme.colorScheme.primary
     }
     val color by animateColorAsState(target, label = "mic")
 
+    // Slow pulse while the mic is open; collapses to no motion in every other phase.
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val scale by pulse.animateFloat(
+        initialValue = 1f,
+        targetValue = if (phase == Phase.LISTENING) 1.08f else 1f,
+        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+        label = "scale",
+    )
+
+    val icon = when (phase) {
+        Phase.SPEAKING -> Icons.Default.Stop
+        Phase.TRANSCRIBING, Phase.THINKING -> Icons.Default.Close
+        else -> Icons.Default.Mic
+    }
+
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        IconButton(
-            onClick = onClick,
-            modifier = Modifier.size(112.dp).clip(CircleShape).background(color),
-        ) {
-            Icon(
-                imageVector = if (phase == Phase.SPEAKING) Icons.Default.Stop else Icons.Default.Mic,
-                contentDescription = "Talk",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(48.dp),
-            )
+        Box(contentAlignment = Alignment.Center) {
+            if (phase.isWorking()) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(126.dp),
+                    strokeWidth = 3.dp,
+                    color = color,
+                )
+            }
+            IconButton(
+                onClick = onClick,
+                modifier = Modifier
+                    .size(112.dp)
+                    .scale(scale)
+                    .clip(CircleShape)
+                    .background(color),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = when (phase) {
+                        Phase.SPEAKING -> "Stop speaking"
+                        Phase.TRANSCRIBING, Phase.THINKING -> "Cancel"
+                        else -> "Talk"
+                    },
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(48.dp),
+                )
+            }
         }
     }
 }
@@ -215,6 +267,7 @@ private fun DictationBar(
     phase: Phase,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -254,12 +307,14 @@ private fun DictationBar(
             keyboardActions = KeyboardActions(onSend = { submit() }),
         )
 
-        if (phase == Phase.SPEAKING) {
-            IconButton(onClick = onStop) {
+        when {
+            phase == Phase.SPEAKING -> IconButton(onClick = onStop) {
                 Icon(Icons.Default.Stop, contentDescription = "Stop speaking")
             }
-        } else {
-            IconButton(onClick = { submit() }, enabled = text.isNotBlank()) {
+            phase.isWorking() -> IconButton(onClick = onCancel) {
+                Icon(Icons.Default.Close, contentDescription = "Cancel")
+            }
+            else -> IconButton(onClick = { submit() }, enabled = text.isNotBlank()) {
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
             }
         }
